@@ -48,8 +48,9 @@ import { DialogConfirm } from "@tui/ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { Sidebar } from "./sidebar"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
-
 import parsers from "../../../../../../parsers-config.json"
+import { Clipboard } from "../../util/clipboard"
+import { Toast, useToast } from "../../ui/toast"
 
 addDefaultParsers(parsers.parsers)
 
@@ -82,6 +83,8 @@ export function Session() {
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
 
   createEffect(() => sync.session.sync(route.sessionID))
+
+  const toast = useToast()
 
   const sdk = useSDK()
 
@@ -173,12 +176,21 @@ export function Session() {
       keybind: "session_share",
       disabled: !!session()?.share?.url,
       category: "Session",
-      onSelect: (dialog) => {
-        sdk.client.session.share({
+      onSelect: async (dialog) => {
+        await sdk.client.session.share({
           path: {
             id: route.sessionID,
           },
         })
+          .then((res) =>
+            Clipboard.copy(res.data!.share!.url).catch(() =>
+              toast.show({ message: "Failed to copy URL to clipboard", type: "error" })
+            )
+          )
+          .then(() =>
+            toast.show({ message: "Share URL copied to clipboard!", type: "success" })
+          )
+          .catch(() => toast.show({ message: "Failed to share session", type: "error" }))
         dialog.clear()
       },
     },
@@ -500,6 +512,7 @@ export function Session() {
               />
             </box>
           </Show>
+          <Toast />
         </box>
         <Show when={sidebarVisible()}>
           <Sidebar sessionID={route.sessionID} />
